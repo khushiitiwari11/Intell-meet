@@ -22,11 +22,14 @@ app.use(express.json());
 app.use(cors());
 app.use(helmet());
 
+// Import Routes
+const authRoutes = require('./routes/authRoutes');
+app.use('/api/auth', authRoutes);
+
 // Basic Route for testing
 app.get('/', (req, res) => {
   res.send('IntellMeet API is running...');
 });
-
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected Successfully'))
