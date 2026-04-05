@@ -24,8 +24,12 @@ app.use(helmet());
 
 // Import Routes
 const authRoutes = require('./routes/authRoutes');
-app.use('/api/auth', authRoutes);
+const profileRoutes = require('./routes/profileRoutes'); 
+const meetingRoutes = require('./routes/meetingRoutes');
 
+app.use('/api/auth', authRoutes);
+app.use('/api/profile', profileRoutes); 
+app.use('/api/meetings', meetingRoutes);
 // Basic Route for testing
 app.get('/', (req, res) => {
   res.send('IntellMeet API is running...');
@@ -35,17 +39,36 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected Successfully'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
-// Socket.io Connection Logic
+// Socket.io Connection & WebRTC Signaling Logic
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
   
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
-  });
-});
+  // 1. User joins a specific meeting room
+  socket.on('join-room', (roomId, userId) => {
+    socket.join(roomId);
+    
+    // Broadcast to everyone else in the room that a new user joined
+    socket.to(roomId).emit('user-connected', userId);
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+    // 2. WebRTC Signaling: Relay Offers
+    socket.on('offer', (payload) => {
+      io.to(payload.target).emit('offer', payload);
+    });
+
+    // 3. WebRTC Signaling: Relay Answers
+    socket.on('answer', (payload) => {
+      io.to(payload.target).emit('answer', payload);
+    });
+
+    // 4. WebRTC Signaling: Relay ICE Candidates
+    socket.on('ice-candidate', (incoming) => {
+      io.to(incoming.target).emit('ice-candidate', incoming.candidate);
+    });
+
+    // Handle user leaving the call
+    socket.on('disconnect', () => {
+      console.log(`User disconnected: ${socket.id}`);
+      socket.to(roomId).emit('user-disconnected', userId);
+    });
+  });
 });
