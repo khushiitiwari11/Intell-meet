@@ -1,4 +1,6 @@
 require('dotenv').config();
+const connectDB = require('./config/db');
+connectDB();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -34,10 +36,6 @@ app.use('/api/meetings', meetingRoutes);
 app.get('/', (req, res) => {
   res.send('IntellMeet API is running...');
 });
-// MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB Connected Successfully'))
-  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
 // Socket.io Connection & WebRTC Signaling Logic
 io.on('connection', (socket) => {
@@ -72,3 +70,6 @@ io.on('connection', (socket) => {
     });
   });
 });
+// Start Server
+const PORT = process.env.PORT || 5001;
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

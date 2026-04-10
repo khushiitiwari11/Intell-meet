@@ -1,22 +1,25 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import MeetingRoom from './pages/MeetingRoom';
 
-// Temporary placeholders for Day 6
-const Login = () => <div className="p-10 text-3xl font-bold text-center text-blue-600">Login Page (Coming Day 6)</div>;
-const Dashboard = () => <div className="p-10 text-3xl font-bold text-center text-green-600">Secure Dashboard</div>;
-
-// The Bouncer: Kicks you out if you don't have a token
+// The Bouncer: Protects secure routes
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
 function App() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-50 text-gray-900">
+      <div className="min-h-screen text-gray-900 font-sans bg-gray-50">
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
+          <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} />
           
           <Route 
             path="/dashboard" 
@@ -26,8 +29,16 @@ function App() {
               </ProtectedRoute>
             } 
           />
+
+          <Route 
+            path="/meeting/:id" 
+            element={
+              <ProtectedRoute>
+                <MeetingRoom />
+              </ProtectedRoute>
+            } 
+          />
           
-          {/* Catch-all route */}
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </div>
