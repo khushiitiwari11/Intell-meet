@@ -9,11 +9,16 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Hash the password before saving to the database
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+// Notice: We completely removed 'next' here!
+userSchema.pre('save', async function () {
+  // If the password wasn't changed, skip the hashing
+  if (!this.isModified('password')) {
+    return;
+  }
+
+  // Hash the password
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // Method to verify passwords during login
