@@ -8,8 +8,6 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String, default: '' }
 }, { timestamps: true });
 
-// Hash the password before saving to the database
-// Notice: We completely removed 'next' here!
 userSchema.pre('save', async function () {
   // If the password wasn't changed, skip the hashing
   if (!this.isModified('password')) {
