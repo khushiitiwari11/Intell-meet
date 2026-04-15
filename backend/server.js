@@ -62,6 +62,11 @@ io.on('connection', (socket) => {
     socket.on('ice-candidate', (incoming) => {
       io.to(incoming.target).emit('ice-candidate', incoming.candidate);
     });
+    
+    socket.on('send-message', (payload) => {
+      // Broadcast the message to everyone else in this specific room
+      socket.to(roomId).emit('receive-message', payload);
+    });
 
     // Handle user leaving the call
     socket.on('disconnect', () => {

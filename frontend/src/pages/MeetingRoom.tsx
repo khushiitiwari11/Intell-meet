@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff } from 'lucide-react';
+import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, MonitorUp, MessageSquare, Send, X } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/useAuthStore';
@@ -13,47 +13,61 @@ const ICE_SERVERS = {
   ],
 };
 
+// Interface for our chat messages
+interface ChatMessage {
+  sender: string;
+  text: string;
+  time: string;
+  isMe: boolean;
+}
+
 export default function MeetingRoom() {
   const { id: roomId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   
-  // Video Elements
+  // Video & Stream State
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  
-  // State
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
+  
+  // Screen Sharing State
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
-  // Networking Refs (so they persist without triggering re-renders)
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Networking Refs
   const socketRef = useRef<Socket | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
 
+  // Auto-scroll chat to the bottom
   useEffect(() => {
-    // 1. Connect to our backend Socket server
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
     socketRef.current = io('http://localhost:5001');
     const socket = socketRef.current;
 
-    // 2. Request Camera and Microphone
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((stream) => {
         setLocalStream(stream);
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-        // 3. Join the Socket Room
         socket.emit('join-room', roomId, user?.id);
 
-        // 4. Initialize the WebRTC Peer Connection
         const peer = new RTCPeerConnection(ICE_SERVERS);
         peerRef.current = peer;
 
-        // Add our local video/audio tracks to the connection
         stream.getTracks().forEach(track => peer.addTrack(track, stream));
 
-        // When the peer sends their video, attach it to the remote video element
         peer.ontrack = (event) => {
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = event.streams[0];
@@ -61,7 +75,6 @@ export default function MeetingRoom() {
           }
         };
 
-        // When we find a networking path (ICE Candidate), send it to the other user
         peer.onicecandidate = (event) => {
           if (event.candidate) {
             socket.emit('ice-candidate', { target: roomId, candidate: event.candidate });
@@ -69,33 +82,26 @@ export default function MeetingRoom() {
         };
 
         // --- SIGNALING LOGIC ---
-
-        // A new user joined! We need to call them (Create Offer)
-        socket.on('user-connected', async (newUserId) => {
-          toast.success('Another user joined the room!');
+        socket.on('user-connected', async () => {
+          toast.success('User joined the room!');
           const offer = await peer.createOffer();
           await peer.setLocalDescription(offer);
           socket.emit('offer', { target: roomId, caller: user?.id, sdp: offer });
         });
 
-        // Someone is calling us! We need to answer (Receive Offer -> Create Answer)
         socket.on('offer', async (payload) => {
-          // Ignore our own offers
           if (payload.caller === user?.id) return; 
-          
           await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
           const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
           socket.emit('answer', { target: roomId, responder: user?.id, sdp: answer });
         });
 
-        // The other person answered! Finalize the connection
         socket.on('answer', async (payload) => {
           if (payload.responder === user?.id) return;
           await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         });
 
-        // Receive their networking path and add it to our connection
         socket.on('ice-candidate', async (candidate) => {
           try {
             await peer.addIceCandidate(new RTCIceCandidate(candidate));
@@ -109,13 +115,21 @@ export default function MeetingRoom() {
           if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
           setRemoteConnected(false);
         });
-      })
-      .catch((error) => {
-        console.error('Media access error:', error);
-        toast.error('Could not access camera/microphone.');
-      });
 
-    // Cleanup: Disconnect sockets and stop camera when leaving the page
+        // --- DAY 12: CHAT LISTENER ---
+        socket.on('receive-message', (payload) => {
+          setMessages(prev => [...prev, {
+            sender: payload.senderName,
+            text: payload.text,
+            time: payload.time,
+            isMe: false
+          }]);
+          // Open chat automatically so they see the new message
+          setIsChatOpen(true); 
+        });
+      })
+      .catch(() => toast.error('Could not access camera/microphone.'));
+
     return () => {
       localStream?.getTracks().forEach(track => track.stop());
       peerRef.current?.close();
@@ -124,7 +138,64 @@ export default function MeetingRoom() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
-  // --- CONTROLS ---
+  // --- DAY 11: SCREEN SHARING LOGIC ---
+  const toggleScreenShare = async () => {
+    if (!isScreenSharing) {
+      try {
+        // Ask browser for screen stream
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+
+        // Find the video track we are currently sending to the other person
+        const sender = peerRef.current?.getSenders().find(s => s.track?.kind === 'video');
+        
+        // Replace camera track with screen track seamlessly
+        if (sender) sender.replaceTrack(screenTrack);
+        
+        // Update our local video element to show our screen
+        if (localVideoRef.current) localVideoRef.current.srcObject = screenStream;
+        setIsScreenSharing(true);
+
+        // Handle user clicking "Stop Sharing" on the browser's native floating bar
+        screenTrack.onended = () => {
+          const cameraTrack = localStream?.getVideoTracks()[0];
+          if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
+          if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+          setIsScreenSharing(false);
+        };
+      } catch (error) {
+        toast.error('Screen sharing was cancelled.');
+      }
+    } else {
+      // Manual stop via our custom button
+      const cameraTrack = localStream?.getVideoTracks()[0];
+      const sender = peerRef.current?.getSenders().find(s => s.track?.kind === 'video');
+      if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
+      if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+      setIsScreenSharing(false);
+    }
+  };
+
+  // --- DAY 12: SEND MESSAGE LOGIC ---
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Send to backend
+    socketRef.current?.emit('send-message', {
+      roomId,
+      text: newMessage,
+      senderName: user?.name || 'Guest',
+      time: timeString
+    });
+
+    // Add to our own screen
+    setMessages(prev => [...prev, { sender: 'You', text: newMessage, time: timeString, isMe: true }]);
+    setNewMessage('');
+  };
+
   const toggleAudio = () => {
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
@@ -141,78 +212,102 @@ export default function MeetingRoom() {
     }
   };
 
-  const leaveMeeting = () => {
-    navigate('/dashboard');
-  };
-
   return (
-    <div className="h-screen bg-gray-900 flex flex-col font-sans">
-      {/* Header */}
-      <div className="p-4 flex justify-between items-center bg-gray-800 text-white shadow-md z-10">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <VideoIcon size={24} className="text-blue-500" /> IntellMeet
-        </h1>
-        <span className="bg-gray-700 px-3 py-1 rounded-md text-sm font-mono text-gray-300">
-          Room ID: {roomId}
-        </span>
-      </div>
-
-      {/* Video Grid */}
-      <div className="flex-1 p-4 flex flex-col md:flex-row items-center justify-center gap-4 relative">
+    <div className="h-screen bg-gray-900 flex font-sans overflow-hidden">
+      {/* Main Video Area */}
+      <div className={`flex-1 flex flex-col transition-all duration-300 ${isChatOpen ? 'w-full md:w-3/4' : 'w-full'}`}>
         
-        {/* Remote Video (The other person) */}
-        <div className={`relative w-full max-w-4xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-700 ${!remoteConnected && 'hidden'}`}>
-          <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
-          <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-lg text-white backdrop-blur-sm text-sm">
-            Guest
+        {/* Header */}
+        <div className="p-4 flex justify-between items-center bg-gray-800 text-white z-10">
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <VideoIcon size={24} className="text-blue-500" /> IntellMeet
+          </h1>
+          <span className="bg-gray-700 px-3 py-1 rounded-md text-sm font-mono text-gray-300">ID: {roomId}</span>
+        </div>
+
+        {/* Video Grid */}
+        <div className="flex-1 p-4 flex flex-col md:flex-row items-center justify-center gap-4 relative">
+          <div className={`relative w-full max-w-4xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-700 ${!remoteConnected && 'hidden'}`}>
+            <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-lg text-white text-sm">Guest</div>
+          </div>
+
+          <div className={`relative bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-700 transition-all duration-300 ${remoteConnected ? 'w-48 aspect-video absolute bottom-8 right-8 z-20' : 'w-full max-w-4xl aspect-video'}`}>
+            <video 
+              ref={localVideoRef} 
+              autoPlay 
+              playsInline 
+              muted 
+              className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'}`} 
+              style={{ transform: isScreenSharing ? 'none' : 'scaleX(-1)' }} 
+            />
+            {isVideoOff && <div className="absolute inset-0 flex items-center justify-center text-white bg-gray-800">Camera Off</div>}
+            <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded-md text-white text-xs">You {isScreenSharing && '(Sharing)'}</div>
           </div>
         </div>
 
-        {/* Local Video (You) */}
-        <div className={`relative bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-700 transition-all duration-300 ${remoteConnected ? 'w-48 aspect-video absolute bottom-24 right-8' : 'w-full max-w-4xl aspect-video'}`}>
-          <video 
-            ref={localVideoRef} 
-            autoPlay 
-            playsInline 
-            muted // ALWAYS mute local video to prevent horrible echo loops
-            className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'}`} 
-            style={{ transform: 'scaleX(-1)' }} // Mirror the camera like Zoom does
-          />
-          {isVideoOff && (
-            <div className="absolute inset-0 flex items-center justify-center text-white bg-gray-800">
-              <span className="text-xl font-medium">Camera Off</span>
-            </div>
-          )}
-          <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded-md text-white backdrop-blur-sm text-xs">
-            You
-          </div>
+        {/* Control Bar */}
+        <div className="h-20 bg-gray-800 flex items-center justify-center space-x-4 pb-2">
+          <button onClick={toggleAudio} className={`p-4 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
+            {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
+          </button>
+          <button onClick={toggleVideo} className={`p-4 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
+            {isVideoOff ? <VideoOff size={22} /> : <VideoIcon size={22} />}
+          </button>
+          <button onClick={toggleScreenShare} className={`p-4 rounded-full ${isScreenSharing ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'} text-white`} title="Share Screen">
+            <MonitorUp size={22} />
+          </button>
+          <button onClick={() => setIsChatOpen(!isChatOpen)} className={`p-4 rounded-full ${isChatOpen ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'} text-white`} title="Toggle Chat">
+            <MessageSquare size={22} />
+          </button>
+          <button onClick={() => navigate('/dashboard')} className="p-4 rounded-full bg-red-600 hover:bg-red-700 text-white" title="Leave">
+            <PhoneOff size={22} />
+          </button>
         </div>
+      </div>
 
-        {/* Waiting State */}
-        {!remoteConnected && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <div className="bg-gray-800/80 backdrop-blur-md px-6 py-4 rounded-xl text-center border border-gray-700">
-              <h3 className="text-white text-xl font-semibold mb-2">Waiting for others to join...</h3>
-              <p className="text-gray-400 text-sm">Share the Room ID from the top right corner.</p>
-            </div>
+      {/* --- DAY 12: CHAT SIDEBAR --- */}
+      {isChatOpen && (
+        <div className="w-80 bg-white flex flex-col border-l border-gray-200">
+          <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+            <h2 className="font-bold text-gray-800 flex items-center gap-2">
+              <MessageSquare size={18} /> Meeting Chat
+            </h2>
+            <button onClick={() => setIsChatOpen(false)} className="text-gray-500 hover:text-gray-800"><X size={20} /></button>
           </div>
-        )}
-      </div>
+          
+          {/* Message List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            {messages.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 mt-10">No messages yet. Say hello!</p>
+            ) : (
+              messages.map((msg, idx) => (
+                <div key={idx} className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                  <span className="text-xs text-gray-500 mb-1">{msg.sender} • {msg.time}</span>
+                  <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'}`}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={chatEndRef} />
+          </div>
 
-      {/* Control Bar */}
-      <div className="h-20 bg-gray-800 flex items-center justify-center space-x-6 pb-2">
-        <button onClick={toggleAudio} className={`p-4 rounded-full transition ${isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-700 hover:bg-gray-600'} text-white shadow-lg`}>
-          {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
-        </button>
-
-        <button onClick={toggleVideo} className={`p-4 rounded-full transition ${isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-700 hover:bg-gray-600'} text-white shadow-lg`}>
-          {isVideoOff ? <VideoOff size={24} /> : <VideoIcon size={24} />}
-        </button>
-
-        <button onClick={leaveMeeting} className="p-4 rounded-full bg-red-600 hover:bg-red-700 text-white transition shadow-lg flex items-center justify-center" title="End Call">
-          <PhoneOff size={24} />
-        </button>
-      </div>
+          {/* Input Box */}
+          <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200 flex gap-2">
+            <input 
+              type="text" 
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type a message..." 
+              className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button type="submit" disabled={!newMessage.trim()} className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50">
+              <Send size={18} />
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
