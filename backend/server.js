@@ -67,6 +67,11 @@ io.on('connection', (socket) => {
       // Broadcast the message to everyone else in this specific room
       socket.to(roomId).emit('receive-message', payload);
     });
+  
+    socket.on('draw-line', (drawData) => {
+      // Instantly forward the X/Y coordinates to everyone else in the room
+      socket.to(roomId).emit('draw-line', drawData);
+    });
 
     // Handle user leaving the call
     socket.on('disconnect', () => {
