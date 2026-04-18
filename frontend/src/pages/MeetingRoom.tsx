@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, MonitorUp, MessageSquare, Send, X } from 'lucide-react';
+import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, MonitorUp, MessageSquare, Send, X, PenTool, Disc } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/useAuthStore';
+import Whiteboard from '../components/Whiteboard';
 
-// Google's free public STUN servers help browsers find their public IP addresses
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -13,7 +13,6 @@ const ICE_SERVERS = {
   ],
 };
 
-// Interface for our chat messages
 interface ChatMessage {
   sender: string;
   text: string;
@@ -34,20 +33,25 @@ export default function MeetingRoom() {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
   
-  // Screen Sharing State
+  // Feature States
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-
-  // Chat State
+  const [isWhiteboardOpen, setIsWhiteboardOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  
+  // Chat State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
 
   // Networking Refs
   const socketRef = useRef<Socket | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
 
-  // Auto-scroll chat to the bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -81,7 +85,6 @@ export default function MeetingRoom() {
           }
         };
 
-        // --- SIGNALING LOGIC ---
         socket.on('user-connected', async () => {
           toast.success('User joined the room!');
           const offer = await peer.createOffer();
@@ -116,7 +119,6 @@ export default function MeetingRoom() {
           setRemoteConnected(false);
         });
 
-        // --- DAY 12: CHAT LISTENER ---
         socket.on('receive-message', (payload) => {
           setMessages(prev => [...prev, {
             sender: payload.senderName,
@@ -124,7 +126,6 @@ export default function MeetingRoom() {
             time: payload.time,
             isMe: false
           }]);
-          // Open chat automatically so they see the new message
           setIsChatOpen(true); 
         });
       })
@@ -138,25 +139,17 @@ export default function MeetingRoom() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
-  // --- DAY 11: SCREEN SHARING LOGIC ---
   const toggleScreenShare = async () => {
     if (!isScreenSharing) {
       try {
-        // Ask browser for screen stream
         const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         const screenTrack = screenStream.getVideoTracks()[0];
-
-        // Find the video track we are currently sending to the other person
         const sender = peerRef.current?.getSenders().find(s => s.track?.kind === 'video');
         
-        // Replace camera track with screen track seamlessly
         if (sender) sender.replaceTrack(screenTrack);
-        
-        // Update our local video element to show our screen
         if (localVideoRef.current) localVideoRef.current.srcObject = screenStream;
         setIsScreenSharing(true);
 
-        // Handle user clicking "Stop Sharing" on the browser's native floating bar
         screenTrack.onended = () => {
           const cameraTrack = localStream?.getVideoTracks()[0];
           if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
@@ -164,10 +157,9 @@ export default function MeetingRoom() {
           setIsScreenSharing(false);
         };
       } catch (error) {
-        toast.error('Screen sharing was cancelled.');
+        toast.error('Screen sharing cancelled.');
       }
     } else {
-      // Manual stop via our custom button
       const cameraTrack = localStream?.getVideoTracks()[0];
       const sender = peerRef.current?.getSenders().find(s => s.track?.kind === 'video');
       if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
@@ -176,14 +168,54 @@ export default function MeetingRoom() {
     }
   };
 
-  // --- DAY 12: SEND MESSAGE LOGIC ---
+  const toggleRecording = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+        video: { displaySurface: "browser" }, 
+        audio: true 
+      });
+      
+      const recorder = new MediaRecorder(screenStream);
+      mediaRecorderRef.current = recorder;
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `IntellMeet-Recording-${new Date().getTime()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setIsRecording(false);
+        toast.success('Recording saved to your computer!');
+        
+        screenStream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      toast.success('Recording started!');
+    } catch (error) {
+      toast.error('Recording cancelled.');
+    }
+  };
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // Send to backend
     socketRef.current?.emit('send-message', {
       roomId,
       text: newMessage,
@@ -191,7 +223,6 @@ export default function MeetingRoom() {
       time: timeString
     });
 
-    // Add to our own screen
     setMessages(prev => [...prev, { sender: 'You', text: newMessage, time: timeString, isMe: true }]);
     setNewMessage('');
   };
@@ -246,6 +277,15 @@ export default function MeetingRoom() {
           </div>
         </div>
 
+        {/* Whiteboard Overlay */}
+        {isWhiteboardOpen && (
+          <Whiteboard 
+            socket={socketRef.current} 
+            roomId={roomId!} 
+            onClose={() => setIsWhiteboardOpen(false)} 
+          />
+        )}
+
         {/* Control Bar */}
         <div className="h-20 bg-gray-800 flex items-center justify-center space-x-4 pb-2">
           <button onClick={toggleAudio} className={`p-4 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
@@ -257,6 +297,12 @@ export default function MeetingRoom() {
           <button onClick={toggleScreenShare} className={`p-4 rounded-full ${isScreenSharing ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'} text-white`} title="Share Screen">
             <MonitorUp size={22} />
           </button>
+          <button onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)} className={`p-4 rounded-full ${isWhiteboardOpen ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'} text-white`} title="Whiteboard">
+            <PenTool size={22} />
+          </button>
+          <button onClick={toggleRecording} className={`p-4 rounded-full ${isRecording ? 'bg-red-600 animate-pulse' : 'bg-gray-700 hover:bg-gray-600'} text-white`} title="Record Meeting">
+            <Disc size={22} />
+          </button>
           <button onClick={() => setIsChatOpen(!isChatOpen)} className={`p-4 rounded-full ${isChatOpen ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'} text-white`} title="Toggle Chat">
             <MessageSquare size={22} />
           </button>
@@ -266,9 +312,9 @@ export default function MeetingRoom() {
         </div>
       </div>
 
-      {/* --- DAY 12: CHAT SIDEBAR --- */}
+      {/* Chat Sidebar */}
       {isChatOpen && (
-        <div className="w-80 bg-white flex flex-col border-l border-gray-200">
+        <div className="w-80 bg-white flex flex-col border-l border-gray-200 z-50">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
             <h2 className="font-bold text-gray-800 flex items-center gap-2">
               <MessageSquare size={18} /> Meeting Chat
@@ -276,7 +322,6 @@ export default function MeetingRoom() {
             <button onClick={() => setIsChatOpen(false)} className="text-gray-500 hover:text-gray-800"><X size={20} /></button>
           </div>
           
-          {/* Message List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.length === 0 ? (
               <p className="text-center text-sm text-gray-400 mt-10">No messages yet. Say hello!</p>
@@ -293,7 +338,6 @@ export default function MeetingRoom() {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Input Box */}
           <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200 flex gap-2">
             <input 
               type="text" 

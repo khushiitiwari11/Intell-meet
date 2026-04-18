@@ -26,6 +26,7 @@ export default function Dashboard() {
         const response = await axiosInstance.get('/meetings');
         setMeetings(response.data);
       } catch (error) {
+        console.error('Failed to load meetings:', error);
         toast.error('Failed to load your meetings');
       } finally {
         setLoading(false);
@@ -44,6 +45,7 @@ export default function Dashboard() {
       // Navigate straight into the new meeting room
       navigate(`/meeting/${response.data._id}`);
     } catch (error) {
+      console.error('Failed to create meeting:', error);
       toast.error('Failed to create meeting');
     }
   };
