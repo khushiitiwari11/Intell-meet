@@ -1,32 +1,40 @@
 import { create } from 'zustand';
 
-interface User {
-  id: string;
+// 1. Define what a User looks like
+export interface User {
+  _id: string; // or id, depending on your backend
   name: string;
   email: string;
 }
 
+// 2. Define what the API sends back upon login
+interface AuthResponse {
+  user: User;
+  accessToken: string;
+}
+
+// 3. Define the Store State
 interface AuthState {
   user: User | null;
-  isAuthenticated: boolean;
-  login: (userData: User) => void;
+  token: string | null;
+  login: (data: AuthResponse) => void; // <--- This was the fix!
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  // Check local storage on initial load
   user: JSON.parse(localStorage.getItem('user') || 'null'),
-  isAuthenticated: !!localStorage.getItem('accessToken'),
+  token: localStorage.getItem('token') || null,
   
-  login: (userData) => {
-    localStorage.setItem('user', JSON.stringify(userData.user));
-    localStorage.setItem('accessToken', userData.accessToken);
-    set({ user: userData.user, isAuthenticated: true });
+  // Now TypeScript knows 'data' contains both 'user' and 'accessToken'
+  login: (data) => {
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('token', data.accessToken);
+    set({ user: data.user, token: data.accessToken });
   },
   
   logout: () => {
     localStorage.removeItem('user');
-    localStorage.removeItem('accessToken');
-    set({ user: null, isAuthenticated: false });
-  }
+    localStorage.removeItem('token');
+    set({ user: null, token: null });
+  },
 }));

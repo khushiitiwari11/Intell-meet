@@ -57,7 +57,9 @@ export default function MeetingRoom() {
   }, [messages]);
 
   useEffect(() => {
-    socketRef.current = io('http://localhost:5001');
+    // Look for the live cloud URL first, but fall back to localhost for local testing
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001';
+    socketRef.current = io(socketUrl);
     const socket = socketRef.current;
 
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
