@@ -19,11 +19,14 @@ export default function Dashboard() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch meetings when the dashboard loads
+  // 1. Fetch meetings when the dashboard loads
   useEffect(() => {
     const fetchMeetings = async () => {
       try {
-        const response = await axiosInstance.get('/meetings');
+        // Using raw axios + absolute URL + withCredentials
+        const response = await axios.get('https://intell-meet.onrender.com/api/meetings', {
+          withCredentials: true
+        });
         setMeetings(response.data);
       } catch (error) {
         console.error('Failed to load meetings:', error);
@@ -35,25 +38,27 @@ export default function Dashboard() {
     fetchMeetings();
   }, []);
 
+  // 2. Handle creating a new meeting
   const handleCreateMeeting = async () => {
     try {
-      const response = await axiosInstance.post('/meetings', {
-        title: `${user?.name}'s Quick Meeting`,
-        description: 'Instant meeting room',
-        scheduledAt: new Date().toISOString()
-      });
+      const response = await axios.post(
+        'https://intell-meet.onrender.com/api/meetings', 
+        {
+          title: `${user?.name}'s Quick Meeting`,
+          description: 'Instant meeting room',
+          scheduledAt: new Date().toISOString()
+        },
+        { withCredentials: true } // Crucial for cross-domain cookies
+      );
+      
       // Navigate straight into the new meeting room
+      toast.success('Meeting created!');
       navigate(`/meeting/${response.data._id}`);
     } catch (error) {
       console.error('Failed to create meeting:', error);
       toast.error('Failed to create meeting');
     }
   };
-  const response = await axios.post(
-  'https://intell-meet.onrender.com/api/meetings/create', // Full URL
-  { title: "New Meeting" }, // or whatever data you send
-  { withCredentials: true } // THIS IS THE KEY!
-);
 
   const handleLogout = () => {
     logout();
@@ -79,7 +84,6 @@ export default function Dashboard() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Your Dashboard</h1>
@@ -94,7 +98,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Meetings Grid */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <Calendar size={20} className="text-blue-500"/> Meeting History

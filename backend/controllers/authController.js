@@ -51,3 +51,9 @@ exports.loginUser = async (req, res) => {
     res.status(500).json({ message: 'Server error during login' });
   }
 };
+res.cookie('token', token, {
+  httpOnly: true,
+  secure: true,      // Must be true for HTTPS (Render/Vercel)
+  sameSite: 'none',  // Must be 'none' for cross-site cookies
+  maxAge: 24 * 60 * 60 * 1000 // 24 hours
+});
