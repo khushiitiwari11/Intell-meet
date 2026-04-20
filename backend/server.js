@@ -18,7 +18,8 @@ const connectDB = require('./config/db');
     "http://localhost:5173", 
     "https://intell-meet.vercel.app", 
     "https://intell-meet-riq2.vercel.app", 
-    "https://intell-meet-r09pega1o-khushiitiwari11s-projects.vercel.app" 
+    "https://intell-meet-r09pega1o-khushiitiwari11s-projects.vercel.app",
+    "https://intell-meet-git-main-khushiitiwari11s-projects.vercel.app" 
   ];
 
   // 2. Initialize Socket.io (Update CORS here)
