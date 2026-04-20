@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { axiosInstance } from '../lib/axios';
+import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function Register() {
@@ -16,6 +16,11 @@ export default function Register() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+  const response = await axios.post(
+  'https://intell-meet.onrender.com/api/auth/register', 
+  { name, email, password },
+  { withCredentials: true } 
+);
     
     try {
       // THE FIX: Hardcoded absolute Render URL to bypass Vercel caching
