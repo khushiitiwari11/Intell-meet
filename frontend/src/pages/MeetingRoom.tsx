@@ -25,6 +25,9 @@ export default function MeetingRoom() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   
+  // THE FIX: Safely extract the ID so TypeScript completely ignores it
+  const userId = (user as any)?._id || (user as any)?.id;
+  
   // Video & Stream State
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -67,7 +70,8 @@ export default function MeetingRoom() {
         setLocalStream(stream);
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-        socket.emit('join-room', roomId, user?.id);
+        // FIXED: Using userId
+        socket.emit('join-room', roomId, userId);
 
         const peer = new RTCPeerConnection(ICE_SERVERS);
         peerRef.current = peer;
@@ -91,19 +95,23 @@ export default function MeetingRoom() {
           toast.success('User joined the room!');
           const offer = await peer.createOffer();
           await peer.setLocalDescription(offer);
-          socket.emit('offer', { target: roomId, caller: user?.id, sdp: offer });
+          // FIXED: Using userId
+          socket.emit('offer', { target: roomId, caller: userId, sdp: offer });
         });
 
         socket.on('offer', async (payload) => {
-          if (payload.caller === user?.id) return; 
+          // FIXED: Using userId
+          if (payload.caller === userId) return; 
           await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
           const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
-          socket.emit('answer', { target: roomId, responder: user?.id, sdp: answer });
+          // FIXED: Using userId
+          socket.emit('answer', { target: roomId, responder: userId, sdp: answer });
         });
 
         socket.on('answer', async (payload) => {
-          if (payload.responder === user?.id) return;
+          // FIXED: Using userId
+          if (payload.responder === userId) return;
           await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         });
 
@@ -221,7 +229,7 @@ export default function MeetingRoom() {
     socketRef.current?.emit('send-message', {
       roomId,
       text: newMessage,
-      senderName: user?.name || 'Guest',
+      senderName: (user as any)?.name || 'Guest',
       time: timeString
     });
 
