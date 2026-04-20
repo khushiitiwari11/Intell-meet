@@ -1,5 +1,7 @@
 require('dotenv').config();
 const connectDB = require('./config/db');
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
 
 (async () => {
   await connectDB();
