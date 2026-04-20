@@ -18,7 +18,9 @@ export default function Register() {
     setLoading(true);
     
     try {
-      const response = await axiosInstance.post('/auth/register', { name, email, password });
+      // THE FIX: Hardcoded absolute Render URL to bypass Vercel caching
+      const response = await axiosInstance.post('https://intell-meet.onrender.com/api/auth/register', { name, email, password });
+      
       login(response.data); 
       toast.success('Account created successfully!');
       navigate('/dashboard');

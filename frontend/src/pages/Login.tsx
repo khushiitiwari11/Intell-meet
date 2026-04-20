@@ -17,7 +17,9 @@ export default function Login() {
     setLoading(true);
     
     try {
-      const response = await axiosInstance.post('/auth/login', { email, password });
+      // THE FIX: Hardcoded absolute Render URL to bypass Vercel caching completely
+      const response = await axiosInstance.post('https://intell-meet.onrender.com/api/auth/login', { email, password });
+      
       login(response.data); // Saves to Zustand and LocalStorage
       toast.success('Login successful!');
       navigate('/dashboard');
