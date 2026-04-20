@@ -65,7 +65,7 @@ export default function MeetingRoom() {
   }, [messages]);
 
   useEffect(() => {
-  // Delete the import.meta.env part and hardcode the live URL:
+  // FORCE the live Render URL for WebSockets
   const socketUrl = 'https://intell-meet.onrender.com';
   socketRef.current = io(socketUrl);
   const socket = socketRef.current;
