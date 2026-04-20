@@ -1,7 +1,5 @@
 require('dotenv').config();
 const connectDB = require('./config/db');
-const cookieParser = require('cookie-parser');
-app.use(cookieParser());
 
 (async () => {
   await connectDB();
@@ -10,38 +8,34 @@ app.use(cookieParser());
   const cors = require('cors');
   const helmet = require('helmet');
   const http = require('http');
+  const cookieParser = require('cookie-parser'); // <-- 1. ADD THIS IMPORT
   const { Server } = require('socket.io');
 
   const app = express();
   const server = http.createServer(app);
 
-  // 1. Define the VIP List (Allowed Origins)
- const allowedOrigins = [
+  const allowedOrigins = [
     "http://localhost:5173", 
     "https://intell-meet.vercel.app", 
-    /\.vercel\.app$/ // <-- The Master Key for all Vercel preview links
+    /\.vercel\.app$/ 
   ];
 
-  // 2. Initialize Socket.io (Update CORS here)
   const io = new Server(server, {
     cors: {
       origin: allowedOrigins,
       methods: ['GET', 'POST'],
-      credentials: true // Crucial for secure connections
+      credentials: true 
     }
   });
 
-  // Middleware
+  // Middleware Order is CRITICAL
   app.use(express.json());
-  
-  // 3. Initialize Express (Update CORS here)
+  app.use(cookieParser()); // <-- 2. ADD THIS BEFORE CORS AND ROUTES
+
   app.use(cors({
-  origin: [
-    "https://intell-meet.vercel.app",
-    /\.vercel\.app$/ 
-  ],
-  credentials: true // <--- MUST BE TRUE
-}));
+    origin: allowedOrigins, // Using the array we defined above
+    credentials: true 
+  }));
   
   app.use(helmet());
 
@@ -54,56 +48,15 @@ app.use(cookieParser());
   app.use('/api/profile', profileRoutes); 
   app.use('/api/meetings', meetingRoutes);
   
-  // Basic Route for testing
   app.get('/', (req, res) => {
     res.send('IntellMeet API is running...');
   });
 
-  // Socket.io Connection & WebRTC Signaling Logic
+  // Socket.io Logic...
   io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.id}`);
-    
-    // 1. User joins a specific meeting room
-    socket.on('join-room', (roomId, userId) => {
-      socket.join(roomId);
-      
-      // Broadcast to everyone else in the room that a new user joined
-      socket.to(roomId).emit('user-connected', userId);
-
-      // 2. WebRTC Signaling: Relay Offers
-      socket.on('offer', (payload) => {
-        io.to(payload.target).emit('offer', payload);
-      });
-
-      // 3. WebRTC Signaling: Relay Answers
-      socket.on('answer', (payload) => {
-        io.to(payload.target).emit('answer', payload);
-      });
-
-      // 4. WebRTC Signaling: Relay ICE Candidates
-      socket.on('ice-candidate', (incoming) => {
-        io.to(incoming.target).emit('ice-candidate', incoming.candidate);
-      });
-      
-      socket.on('send-message', (payload) => {
-        // Broadcast the message to everyone else in this specific room
-        socket.to(roomId).emit('receive-message', payload);
-      });
-    
-      socket.on('draw-line', (drawData) => {
-        // Instantly forward the X/Y coordinates to everyone else in the room
-        socket.to(roomId).emit('draw-line', drawData);
-      });
-
-      // Handle user leaving the call
-      socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.id}`);
-        socket.to(roomId).emit('user-disconnected', userId);
-      });
-    });
+    // ... (rest of your socket code)
   }); 
 
-  // Start Server
   const PORT = process.env.PORT || 5001;
   server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 })();
