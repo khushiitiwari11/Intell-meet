@@ -13,17 +13,32 @@ const connectDB = require('./config/db');
   const app = express();
   const server = http.createServer(app);
 
-  // Initialize Socket.io for Real-Time Features
+  // 1. Define the VIP List (Allowed Origins)
+  const allowedOrigins = [
+    "http://localhost:5173", 
+    "https://intell-meet.vercel.app", 
+    "https://intell-meet-riq2.vercel.app", 
+    "https://intell-meet-r09pega1o-khushiitiwari11s-projects.vercel.app" 
+  ];
+
+  // 2. Initialize Socket.io (Update CORS here)
   const io = new Server(server, {
     cors: {
-      origin: '*', 
-      methods: ['GET', 'POST']
+      origin: allowedOrigins,
+      methods: ['GET', 'POST'],
+      credentials: true // Crucial for secure connections
     }
   });
 
   // Middleware
   app.use(express.json());
-  app.use(cors());
+  
+  // 3. Initialize Express (Update CORS here)
+  app.use(cors({
+    origin: allowedOrigins,
+    credentials: true // Crucial for accepting the secure cookies
+  }));
+  
   app.use(helmet());
 
   // Import Routes
@@ -82,7 +97,7 @@ const connectDB = require('./config/db');
         socket.to(roomId).emit('user-disconnected', userId);
       });
     });
-  }); // <--- THIS WAS THE MISSING BRACKET!
+  }); 
 
   // Start Server
   const PORT = process.env.PORT || 5001;
