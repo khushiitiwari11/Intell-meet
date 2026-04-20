@@ -18,8 +18,8 @@ export default function Login() {
   const response = await axios.post(
   'https://intell-meet.onrender.com/api/auth/login', 
   { email, password },
-  { withCredentials: true } // Don't forget the VIP wristband!
-);  
+  { withCredentials: true } 
+);
     
     try {
       // THE FIX: Hardcoded absolute Render URL to bypass Vercel caching completely
