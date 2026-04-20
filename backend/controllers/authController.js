@@ -13,19 +13,25 @@ exports.registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
     
-    // Check if user already exists
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'User already exists' });
 
-    // Create user
     const user = await User.create({ name, email, password });
-    const tokens = generateTokens(user._id);
-    
+    const { accessToken, refreshToken } = generateTokens(user._id);
+
+    // THE FIX: Set the cookie here!
+    res.cookie('token', accessToken, {
+      httpOnly: true,
+      secure: true,      // Required for Render (HTTPS)
+      sameSite: 'none',  // REQUIRED for Vercel to talk to Render
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+
     res.status(201).json({ 
       user: { id: user._id, name: user.name, email: user.email }, 
-      ...tokens 
+      accessToken 
     });
- } catch (error) {
+  } catch (error) {
     console.error("🔥 REGISTRATION ERROR DETAILS:", error); 
     res.status(500).json({ message: 'Server error during registration' });
   }
@@ -37,23 +43,25 @@ exports.loginUser = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
 
-    // Verify user exists and password matches
     if (user && (await user.matchPassword(password))) {
-      const tokens = generateTokens(user._id);
+      const { accessToken, refreshToken } = generateTokens(user._id);
+
+      res.cookie('token', accessToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        maxAge: 30 * 24 * 60 * 60 * 1000 
+      });
+
       res.json({ 
         user: { id: user._id, name: user.name, email: user.email, avatar: user.avatar }, 
-        ...tokens 
+        accessToken 
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error) {
+    console.error("🔥 LOGIN ERROR:", error);
     res.status(500).json({ message: 'Server error during login' });
   }
 };
-res.cookie('token', token, {
-  httpOnly: true,
-  secure: true,      // Must be true for HTTPS (Render/Vercel)
-  sameSite: 'none',  // Must be 'none' for cross-site cookies
-  maxAge: 24 * 60 * 60 * 1000 // 24 hours
-});

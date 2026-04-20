@@ -34,9 +34,12 @@ const connectDB = require('./config/db');
   
   // 3. Initialize Express (Update CORS here)
   app.use(cors({
-    origin: allowedOrigins,
-    credentials: true // Crucial for accepting the secure cookies
-  }));
+  origin: [
+    "https://intell-meet.vercel.app",
+    /\.vercel\.app$/ 
+  ],
+  credentials: true // <--- MUST BE TRUE
+}));
   
   app.use(helmet());
 
