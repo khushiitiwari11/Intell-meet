@@ -14,12 +14,10 @@ const connectDB = require('./config/db');
   const server = http.createServer(app);
 
   // 1. Define the VIP List (Allowed Origins)
-  const allowedOrigins = [
+ const allowedOrigins = [
     "http://localhost:5173", 
     "https://intell-meet.vercel.app", 
-    "https://intell-meet-riq2.vercel.app", 
-    "https://intell-meet-r09pega1o-khushiitiwari11s-projects.vercel.app",
-    "https://intell-meet-git-main-khushiitiwari11s-projects.vercel.app" 
+    /\.vercel\.app$/ // <-- The Master Key for all Vercel preview links
   ];
 
   // 2. Initialize Socket.io (Update CORS here)
