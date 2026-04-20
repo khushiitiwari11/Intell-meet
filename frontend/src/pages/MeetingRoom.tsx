@@ -20,13 +20,18 @@ interface ChatMessage {
   isMe: boolean;
 }
 
+interface MeetingUser {
+  _id?: string;
+  id?: string;
+  name?: string;
+}
+
 export default function MeetingRoom() {
   const { id: roomId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user } = useAuthStore() as { user: MeetingUser | null };
   
-  // THE FIX: Safely extract the ID so TypeScript completely ignores it
-  const userId = (user as any)?._id || (user as any)?.id;
+  const userId = user?._id ?? user?.id;
   
   // Video & Stream State
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -60,10 +65,10 @@ export default function MeetingRoom() {
   }, [messages]);
 
   useEffect(() => {
-    // Look for the live cloud URL first, but fall back to localhost for local testing
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001';
-    socketRef.current = io(socketUrl);
-    const socket = socketRef.current;
+  // Delete the import.meta.env part and hardcode the live URL:
+  const socketUrl = 'https://intell-meet.onrender.com';
+  socketRef.current = io(socketUrl);
+  const socket = socketRef.current;
 
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((stream) => {
@@ -166,7 +171,7 @@ export default function MeetingRoom() {
           if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
           setIsScreenSharing(false);
         };
-      } catch (error) {
+      } catch {
         toast.error('Screen sharing cancelled.');
       }
     } else {
@@ -215,7 +220,7 @@ export default function MeetingRoom() {
       recorder.start();
       setIsRecording(true);
       toast.success('Recording started!');
-    } catch (error) {
+    } catch {
       toast.error('Recording cancelled.');
     }
   };
@@ -229,7 +234,7 @@ export default function MeetingRoom() {
     socketRef.current?.emit('send-message', {
       roomId,
       text: newMessage,
-      senderName: (user as any)?.name || 'Guest',
+      senderName: user?.name || 'Guest',
       time: timeString
     });
 
@@ -329,7 +334,14 @@ export default function MeetingRoom() {
             <h2 className="font-bold text-gray-800 flex items-center gap-2">
               <MessageSquare size={18} /> Meeting Chat
             </h2>
-            <button onClick={() => setIsChatOpen(false)} className="text-gray-500 hover:text-gray-800"><X size={20} /></button>
+            <button
+              onClick={() => setIsChatOpen(false)}
+              className="text-gray-500 hover:text-gray-800"
+              aria-label="Close chat"
+              title="Close chat"
+            >
+              <X size={20} />
+            </button>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
@@ -356,7 +368,13 @@ export default function MeetingRoom() {
               placeholder="Type a message..." 
               className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <button type="submit" disabled={!newMessage.trim()} className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={!newMessage.trim()}
+              className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-50"
+              title="Send message"
+              aria-label="Send message"
+            >
               <Send size={18} />
             </button>
           </form>

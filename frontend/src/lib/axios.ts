@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 export const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+  // Delete the import.meta.env part and hardcode the live URL:
+  baseURL: 'https://intell-meet.onrender.com/api', 
 });
 
 // Automatically attach the JWT token to every request
