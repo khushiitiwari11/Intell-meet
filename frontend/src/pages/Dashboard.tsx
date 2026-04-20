@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { axiosInstance } from '../lib/axios';
+import axios from 'axios';
 import { Video, Calendar, Clock, LogOut, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -49,6 +49,11 @@ export default function Dashboard() {
       toast.error('Failed to create meeting');
     }
   };
+  const response = await axios.post(
+  'https://intell-meet.onrender.com/api/meetings/create', // Full URL
+  { title: "New Meeting" }, // or whatever data you send
+  { withCredentials: true } // THIS IS THE KEY!
+);
 
   const handleLogout = () => {
     logout();
