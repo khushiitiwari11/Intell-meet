@@ -30,6 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: !!localStorage.getItem('token'),
   
   login: (data) => {
+    // Guarantee an 'id' exists by mapping MongoDB's '_id'
     const processedUser = { 
       ...data.user, 
       id: data.user.id || data.user._id 
