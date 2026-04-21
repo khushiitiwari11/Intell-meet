@@ -10,7 +10,7 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 Sentry.init({
-  dsn: "YOUR_SENTRY_DSN_HERE",
-  integrations: [new Sentry.BrowserTracing()],
+  dsn: "YOUR_DSN_HERE",
+  integrations: [Sentry.browserTracingIntegration()], 
   tracesSampleRate: 1.0,
 });
