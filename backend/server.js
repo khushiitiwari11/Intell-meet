@@ -77,11 +77,11 @@ const client = require('prom-client');
   const authRoutes = require('./routes/authRoutes');
   const profileRoutes = require('./routes/profileRoutes'); 
   const meetingRoutes = require('./routes/meetingRoutes');
-
+  const taskRoutes = require('./routes/taskRoutes');
   app.use('/api/auth', authRoutes);
   app.use('/api/profile', profileRoutes); 
   app.use('/api/meetings', meetingRoutes);
-
+  app.use('/api/tasks', taskRoutes);    
   // --- 4. SENTRY ERROR HANDLER (v8 SYNTAX) ---
   // Must be after routes, before other error middleware
   Sentry.setupExpressErrorHandler(app);
