@@ -19,14 +19,12 @@ const client = require('prom-client');
   const server = http.createServer(app);
 
   // --- 1. SENTRY INITIALIZATION ---
-  // Must be initialized before any other middleware [cite: 38, 139]
   Sentry.init({ 
     dsn: process.env.SENTRY_BACKEND_DSN,
     tracesSampleRate: 1.0, 
   });
 
   // --- 2. PROMETHEUS METRICS SETUP ---
-  // Tracks system health and concurrent participants 
   const collectDefaultMetrics = client.collectDefaultMetrics;
   collectDefaultMetrics({ timeout: 5000 });
 
@@ -35,7 +33,6 @@ const client = require('prom-client');
     help: 'Total number of active concurrent meetings'
   });
 
-  // Allowed Origins for CORS [cite: 57, 137]
   const allowedOrigins = [
     "http://localhost:5173", 
     "https://intell-meet.vercel.app", 
@@ -51,7 +48,6 @@ const client = require('prom-client');
   });
 
   // --- MIDDLEWARE ORDER (CRITICAL) ---
-  app.use(Sentry.Handlers.requestHandler()); // Sentry first 
   app.use(express.json());
   app.use(cookieParser());
 
@@ -63,7 +59,6 @@ const client = require('prom-client');
   app.use(helmet());
 
   // --- 3. HEALTH CHECK & METRICS ROUTES ---
-  // Automated endpoints for monitoring tools [cite: 38, 139]
   app.get('/api/health', (req, res) => {
     res.status(200).json({
       status: 'UP',
@@ -78,7 +73,7 @@ const client = require('prom-client');
     res.end(await client.register.metrics());
   });
 
-  // Import Routes [cite: 58, 75]
+  // Import Routes
   const authRoutes = require('./routes/authRoutes');
   const profileRoutes = require('./routes/profileRoutes'); 
   const meetingRoutes = require('./routes/meetingRoutes');
@@ -87,8 +82,9 @@ const client = require('prom-client');
   app.use('/api/profile', profileRoutes); 
   app.use('/api/meetings', meetingRoutes);
 
-  // Sentry Error Handler (Must be after routes, before other error middleware) 
-  app.use(Sentry.Handlers.errorHandler());
+  // --- 4. SENTRY ERROR HANDLER (v8 SYNTAX) ---
+  // Must be after routes, before other error middleware
+  Sentry.setupExpressErrorHandler(app);
   
   app.get('/', (req, res) => {
     res.send('IntellMeet API is running with Observability...');
@@ -96,7 +92,6 @@ const client = require('prom-client');
 
   // Socket.io Logic with Metrics tracking
   io.on('connection', (socket) => {
-    // Increment gauge on meeting join or connection [cite: 81]
     activeMeetingsGauge.inc();
 
     socket.on('disconnect', () => {
