@@ -3,9 +3,9 @@ name: IntellMeet Enterprise CI/CD
 # Run this workflow every time code is pushed to the main branch
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-and-verify:
@@ -13,25 +13,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js Environment
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22' # Matching your Render environment
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22" # Matching your Render environment
 
-    - name: Install & Build Frontend
-      working-directory: ./frontend
-      run: |
-        npm install
-        npm run build
+      - name: Install & Build Frontend
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm run build
 
-    - name: Install & Verify Backend
-      working-directory: ./backend
-      run: |
-        npm install
-        # npm test (Uncomment this line when you write Jest tests!)
+      - name: Install & Verify Backend
+        working-directory: ./backend
+        run: |
+          npm install
+          # npm test (Uncomment this line when you write Jest tests!)
 
   deploy:
     name: Trigger Production Deploy
@@ -40,6 +40,6 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-    - name: Ping Render Deploy Hook
-      run: |
-        curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+      - name: Ping Render Deploy Hook
+        run: |
+          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
