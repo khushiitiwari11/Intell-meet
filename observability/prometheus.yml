@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s # How often to fetch data from Render
+
+scrape_configs:
+  - job_name: "intellmeet-production"
+    scheme: https
+    static_configs:
+      - targets: ["intell-meet.onrender.com"]
