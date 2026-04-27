@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const CloudinaryStorage  = require('multer-storage-cloudinary');
 const cloudinary = require('cloudinary').v2;
 const { protect } = require('../middleware/authMiddleware');
 const User = require('../models/User');
