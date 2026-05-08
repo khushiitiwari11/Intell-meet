@@ -21,36 +21,44 @@ const COLUMNS = [
 export default function ProjectBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
 
+  // 1. Fetch tasks when the component loads
   useEffect(() => {
-    axios.get('https://intell-meet.onrender.com/api/tasks', { withCredentials: true })
+    const token = localStorage.getItem('token'); // Retrieve your saved JWT
+
+    axios.get('https://intell-meet.onrender.com/api/tasks', {
+      headers: { Authorization: `Bearer ${token}` } // Send token for authentication
+    })
       .then(res => setTasks(res.data))
       .catch(() => toast.error('Failed to load tasks'));
   }, []);
 
+  // 2. Handle the Drag and Drop Action
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
-    // If dropped outside a column, or didn't move
+    // If dropped outside a column, or didn't move, do nothing
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-    // Optimistically update UI
+    // Optimistically update the UI so it feels instant to the user
     const newStatus = destination.droppableId as Task['status'];
     const updatedTasks = tasks.map(task => 
       task._id === draggableId ? { ...task, status: newStatus } : task
     );
     setTasks(updatedTasks);
 
-    // Tell the database
+    // 3. Tell the database about the new status
     try {
+      const token = localStorage.getItem('token'); // Retrieve token again for the PUT request
+      
       await axios.put(`https://intell-meet.onrender.com/api/tasks/${draggableId}/status`, 
         { status: newStatus }, 
-        { withCredentials: true }
+        { headers: { Authorization: `Bearer ${token}` } } // Send token for authentication
       );
       toast.success('Task updated!');
     } catch (error) {
       toast.error('Failed to update task on server');
-      // Revert UI if server fails (optional but good practice)
+      // Note: If you wanted to be extra safe, you could revert the UI state here if the server fails
     }
   };
 
@@ -58,6 +66,7 @@ export default function ProjectBoard() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         
+        {/* Header Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <LayoutDashboard className="text-blue-600" /> Team Workspace
@@ -77,10 +86,12 @@ export default function ProjectBoard() {
                     ref={provided.innerRef}
                     className={`bg-gray-100 rounded-xl p-4 border border-gray-200 transition-colors ${snapshot.isDraggingOver ? 'bg-blue-50 border-blue-200' : ''}`}
                   >
+                    {/* Column Header */}
                     <h2 className="font-bold text-gray-700 flex items-center gap-2 mb-4 uppercase text-sm tracking-wider">
                       {column.icon} {column.title}
                     </h2>
                     
+                    {/* Task List */}
                     <div className="space-y-3 min-h-[200px]">
                       {tasks.filter(t => t.status === column.id).map((task, index) => (
                         <Draggable draggableId={task._id} index={index} key={task._id}>
@@ -114,4 +125,4 @@ export default function ProjectBoard() {
       </div>
     </div>
   );
-}
+};

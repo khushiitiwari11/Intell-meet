@@ -6,11 +6,11 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 exports.processMeetingAI = async (req, res) => {
   try {
-    const { meetingId, transcript } = req.body; // [cite: 45]
+    const { meetingId, transcript } = req.body; //
 
     // 1. AI Analysis Call
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo", // Industry standard for 2026 [cite: 47]
+      model: "gpt-4-turbo", // Industry standard for 2026
       messages: [
         {
           role: "system",
@@ -25,7 +25,7 @@ exports.processMeetingAI = async (req, res) => {
       response_format: { type: "json_object" }
     });
 
-    // 2. Parse AI response [cite: 45, 116]
+    // 2. Parse AI response
     const aiData = JSON.parse(completion.choices[0].message.content);
 
     // 3. Update the Meeting Record (F-05) 
@@ -39,15 +39,16 @@ exports.processMeetingAI = async (req, res) => {
       { new: true }
     );
 
-    // 4. Automatic Action Item Extraction (F-04/F-06) [cite: 42, 122]
-    if (aiData.actionItems && aiData.actionItems.length > 0) {
+    // 4. Automatic Action Item Extraction (F-04/F-06)
+    // Note: The '?.' prevents crashes if aiData.actionItems is undefined
+    if (aiData.actionItems?.length > 0) {
       const taskPromises = aiData.actionItems.map(item => 
         Task.create({
           title: item.task,
           description: `Extracted from meeting: ${updatedMeeting.title}`,
           assignedToName: item.owner,
           meetingId: meetingId,
-          status: 'Todo' // Default for Kanban board [cite: 43]
+          status: 'Todo' // Default for Kanban board
         })
       );
       await Promise.all(taskPromises);
@@ -56,7 +57,7 @@ exports.processMeetingAI = async (req, res) => {
     res.status(200).json({ 
       message: "AI Processing Complete", 
       summary: aiData.summary,
-      taskCount: aiData.actionItems.length 
+      taskCount: aiData.actionItems?.length || 0 
     });
 
   } catch (error) {
